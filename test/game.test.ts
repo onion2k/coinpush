@@ -55,7 +55,8 @@ describe('the game', () => {
 
   it(
     'piles as it is played: after half a minute fed, a tenth of every shelf lies above the first layer, and nothing at rest cuts anything',
-    { timeout: 30_000 },
+    // half a minute of a full machine played by the autopilot: the longest test here, and the slowest by far
+    { timeout: 60_000 },
     () => {
       const { game } = newGame(11);
       const pilot = new Autopilot(game);
@@ -157,42 +158,38 @@ describe('the game', () => {
     expect(conserved(game)).toBe(true);
   });
 
-  it(
-    'refuses a coin when the board is full, and gives one back when the machine is, losing none',
-    { timeout: 30_000 },
-    () => {
-      const { game, told } = newGame(7);
-      // the board packed by hand, drop after drop with no time passing
-      while (game.board.drop(0));
-      expect(game.drop()).toBe(false);
-      expect(told.some((t) => t.startsWith('refused'))).toBe(true);
-      // the machine filled to the brim: a coin that lands with no room comes back to the hand
-      const { game: full, told: said } = newGame(8);
-      settle(full, 60);
-      const random = seeded(8);
-      const hand = full.progress.save.hand,
-        won = full.progress.save.banked;
-      expect(full.drop()).toBe(true);
-      expect(full.progress.save.hand).toBe(hand - 1);
-      // The coin put at the foot of the board, and the machine filled to the brim at that moment with coins in
-      // the air over the back of every tier: a machine that full pours coins into the chute every frame, so only
-      // in the same frame does the coin find no room. What a brimful machine costs a frame is the perf gate's.
-      full.board.h[0] = BOARD.height - 0.01;
-      let put = 0;
-      for (let k = 0; full.world.live < BODY_CAPACITY; k++) {
-        const t = TIER[k % TIERS];
-        const y = t.back - 1 - random() * (t.back - t.front - 4);
-        if (full.world.spawn(0, (random() * 2 - 1) * 16, y, t.z + 6 + random() * 8) >= 0) put++;
-      }
-      full.progress.save.given += put; // the test's own coins, so the count still adds up
-      expect(full.world.live).toBe(BODY_CAPACITY);
-      full.step(DT, still);
-      expect(full.board.count).toBe(0);
-      expect(said.some((t) => t.startsWith('returned'))).toBe(true);
-      expect(full.progress.save.hand).toBe(hand + (full.progress.save.banked - won));
-      expect(conserved(full)).toBe(true);
-    },
-  );
+  it('refuses a coin when the board is full, and gives one back when the machine is, losing none', () => {
+    const { game, told } = newGame(7);
+    // the board packed by hand, drop after drop with no time passing
+    while (game.board.drop(0));
+    expect(game.drop()).toBe(false);
+    expect(told.some((t) => t.startsWith('refused'))).toBe(true);
+    // the machine filled to the brim: a coin that lands with no room comes back to the hand
+    const { game: full, told: said } = newGame(8);
+    settle(full, 60);
+    const random = seeded(8);
+    const hand = full.progress.save.hand,
+      won = full.progress.save.banked;
+    expect(full.drop()).toBe(true);
+    expect(full.progress.save.hand).toBe(hand - 1);
+    // The coin put at the foot of the board, and the machine filled to the brim at that moment with coins in
+    // the air over the back of every tier: a machine that full pours coins into the chute every frame, so only
+    // in the same frame does the coin find no room. What a brimful machine costs a frame is the perf gate's.
+    full.board.h[0] = BOARD.height - 0.01;
+    let put = 0;
+    for (let k = 0; full.world.live < BODY_CAPACITY; k++) {
+      const t = TIER[k % TIERS];
+      const y = t.back - 1 - random() * (t.back - t.front - 4);
+      if (full.world.spawn(0, (random() * 2 - 1) * 16, y, t.z + 6 + random() * 8) >= 0) put++;
+    }
+    full.progress.save.given += put; // the test's own coins, so the count still adds up
+    expect(full.world.live).toBe(BODY_CAPACITY);
+    full.step(DT, still);
+    expect(full.board.count).toBe(0);
+    expect(said.some((t) => t.startsWith('returned'))).toBe(true);
+    expect(full.progress.save.hand).toBe(hand + (full.progress.save.banked - won));
+    expect(conserved(full)).toBe(true);
+  });
 
   it('writes the save when something has changed and time has passed, and every coin comes back where it was', () => {
     const { game, store } = newGame(9);

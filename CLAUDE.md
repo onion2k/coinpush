@@ -61,8 +61,8 @@ headless boot and a GPU frame, and say so in the file.
 ## Commands
 
     npm run dev            the game at http://localhost:5196
-    npm run check:quick    formatting, types, lint, unit tests (the pre-commit hook; ~10 s)
-    npm run check          all of it: check:quick, fuzz, determinism, leaks, pace, bench, smoke with perf and look (~20 s)
+    npm run check:quick    formatting, types, lint, unit tests (the pre-commit hook; ~20 s)
+    npm run check          all of it: check:quick, fuzz, determinism, leaks, pace, bench, smoke with perf and look (~4 min)
     npm test               unit tests (Vitest, test/)
     npm run fuzz           the game played at random, rules checked; -- --seed N plays one failure again
     npm run determinism    the same seed played twice, hashed, to catch chance not from the seed
