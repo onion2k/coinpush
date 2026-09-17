@@ -6,18 +6,21 @@ import {
   DROP_EVERY,
   FILL,
   HAND0,
-  KIND_RADIUS,
+  KIND_THICKNESS,
+  RAIN,
   SAVE_EVERY,
   TIER,
   TIERS,
   TOP_UP,
+  pusherTop,
   tierAt,
 } from '../src/machine';
+import { Autopilot } from '../src/autopilot';
 import { checkInvariants } from '../src/invariants';
 import { seeded } from '../src/random';
 import { DT, newGame, playUntil, settle, still } from './helpers';
 
-const R = KIND_RADIUS[0];
+const H = KIND_THICKNESS[0];
 
 /** Coins are neither made nor lost: what is in hand, in the machine and on the board is what it was filled with and given. */
 function conserved(game: ReturnType<typeof newGame>['game']) {
@@ -26,24 +29,55 @@ function conserved(game: ReturnType<typeof newGame>['game']) {
 }
 
 describe('the game', () => {
-  it('starts primed, with its coins settled on their tiers and asleep, and nothing that must hold broken', () => {
+  it('starts primed and at rest: beds lying flat, more rained on them and piled, some leaning, nothing cutting anything', () => {
     const { game } = newGame();
-    expect(game.world.live).toBe(FILL);
-    expect(game.progress.save.hand).toBe(HAND0);
-    settle(game, 180);
-    let asleep = 0;
-    for (let i = 0; i < game.world.count; i++) {
-      if (!game.world.alive[i]) continue;
-      const k = tierAt(game.world.y[i]);
-      expect(k, `coin ${i} at y ${game.world.y[i]}`).toBeGreaterThanOrEqual(0);
-      expect(game.world.z[i]).toBeGreaterThanOrEqual(TIER[k].z + R - 0.01);
-      if (game.world.asleep[i]) asleep++;
+    const { world } = game;
+    expect(world.live + game.progress.save.banked).toBe(FILL);
+    expect(game.progress.save.hand).toBe(HAND0 + game.progress.save.banked);
+    expect(game.t, 'and no time has passed: the pushers have not stirred').toBe(0);
+    const above = new Array<number>(TIERS).fill(0);
+    let asleep = 0,
+      leaning = 0;
+    for (let i = 0; i < world.count; i++) {
+      if (!world.alive[i]) continue;
+      const k = tierAt(world.y[i]);
+      expect(k, `coin ${i} at y ${world.y[i]}`).toBeGreaterThanOrEqual(0);
+      if (world.asleep[i]) asleep++;
+      if (world.z[i] > TIER[k].z + H) above[k]++;
+      if (Math.abs(world.axis(i)[2]) < 0.99) leaning++;
     }
-    // most are asleep: the pushers are already moving what lies against their faces and on their tops
-    expect(asleep / game.world.live).toBeGreaterThan(0.5);
+    expect(asleep / world.live, 'at rest before the first frame').toBeGreaterThan(0.95);
+    for (let k = 0; k < TIERS; k++) expect(above[k], `piled on tier ${k}`).toBeGreaterThan(RAIN.each / 3);
+    expect(leaning, 'some lean').toBeGreaterThan(10);
     expect(checkInvariants(game)).toEqual([]);
     expect(conserved(game)).toBe(true);
   });
+
+  it(
+    'piles as it is played: after half a minute fed, a tenth of every shelf lies above the first layer, and nothing at rest cuts anything',
+    { timeout: 30_000 },
+    () => {
+      const { game } = newGame(11);
+      const pilot = new Autopilot(game);
+      for (let f = 0; f < 60 * 30; f++) pilot.step(DT);
+      const { world } = game;
+      const shelf = new Array<number>(TIERS).fill(0),
+        above = new Array<number>(TIERS).fill(0);
+      let leaning = 0;
+      for (let i = 0; i < world.count; i++) {
+        if (!world.alive[i]) continue;
+        const k = tierAt(world.y[i]);
+        if (k < 0 || world.z[i] > pusherTop(k) - 0.1) continue;
+        shelf[k]++;
+        if (world.z[i] > TIER[k].z + H) above[k]++;
+        if (world.asleep[i] && Math.abs(world.axis(i)[2]) < 0.99) leaning++;
+      }
+      for (let k = 0; k < TIERS; k++) expect(above[k] / shelf[k], `tier ${k}`).toBeGreaterThan(0.1);
+      expect(leaning, 'some at rest leaning').toBeGreaterThan(10);
+      expect(world.deepest(true).depth, 'a twentieth of a unit').toBeLessThanOrEqual(0.0501);
+      expect(checkInvariants(game)).toEqual([]);
+    },
+  );
 
   it('drops a coin from the hand onto the board, which lands on the top tier, and tells of both', () => {
     const { game, told } = newGame(2);
@@ -136,26 +170,21 @@ describe('the game', () => {
       const { game: full, told: said } = newGame(8);
       settle(full, 60);
       const random = seeded(8);
-      // coins rained over the back of every tier, and the machine let settle until what will fall into the chute has
-      const rain = () => {
-        let put = 0;
-        for (let k = 0; full.world.live < BODY_CAPACITY; k++) {
-          const t = TIER[k % TIERS];
-          const y = t.back - 1 - random() * (t.back - t.front - 4);
-          if (full.world.spawn(0, (random() * 2 - 1) * 16, y, t.z + 6 + random() * 8) >= 0) put++;
-        }
-        full.progress.save.given += put; // the test's own coins, so the count still adds up
-      };
-      rain();
-      settle(full, 600);
       const hand = full.progress.save.hand,
         won = full.progress.save.banked;
       expect(full.drop()).toBe(true);
       expect(full.progress.save.hand).toBe(hand - 1);
-      // the coin put at the foot of the board and the machine topped up to the brim at that moment: an overfilled
-      // machine pours coins into the chute every frame, so only in the same frame does the coin find no room
+      // The coin put at the foot of the board, and the machine filled to the brim at that moment with coins in
+      // the air over the back of every tier: a machine that full pours coins into the chute every frame, so only
+      // in the same frame does the coin find no room. What a brimful machine costs a frame is the perf gate's.
       full.board.h[0] = BOARD.height - 0.01;
-      rain();
+      let put = 0;
+      for (let k = 0; full.world.live < BODY_CAPACITY; k++) {
+        const t = TIER[k % TIERS];
+        const y = t.back - 1 - random() * (t.back - t.front - 4);
+        if (full.world.spawn(0, (random() * 2 - 1) * 16, y, t.z + 6 + random() * 8) >= 0) put++;
+      }
+      full.progress.save.given += put; // the test's own coins, so the count still adds up
       expect(full.world.live).toBe(BODY_CAPACITY);
       full.step(DT, still);
       expect(full.board.count).toBe(0);
@@ -187,7 +216,47 @@ describe('the game', () => {
         .map((i) => [g.world.x[i], g.world.y[i], g.world.z[i]].map((v) => Math.round(v * 100) / 100).join(','))
         .sort();
     expect(at(again)).toEqual(at(game));
+    // and lying as it lay: a coin that leant comes back leaning the same way
+    const lie = (g: typeof game) =>
+      [...Array(g.world.count).keys()].filter((i) => g.world.alive[i]).map((i) => g.world.axis(i));
+    const lay = lie(game),
+      lies = lie(again);
+    expect(lay.filter((n) => Math.abs(n[2]) < 0.99).length, 'some were leaning').toBeGreaterThan(5);
+    // to within what a save keeps of it, a hundredth each way: a degree or so
+    const turned = lay.filter((n, i) => n[0] * lies[i][0] + n[1] * lies[i][1] + n[2] * lies[i][2] < 0.9995);
+    expect(turned, 'coins not lying as they lay').toEqual([]);
+    // and the pushers where they were in their stroke, so no coin comes back inside one
+    expect(again.t).toBe(game.t);
+    for (let k = 0; k < TIERS; k++) expect(again.pushers.extension(k)).toBeCloseTo(game.pushers.extension(k), 6);
     expect(conserved(again)).toBe(true);
+    expect(checkInvariants(again)).toEqual([]);
+  });
+
+  it('comes back from a save with every pusher where it was, and plays on with no coin flung or buried by one', () => {
+    // saved with the second tier's pusher right back, which at the start of a game is nearly right out: put back
+    // to the start, it would come down on four rows of coins
+    const { game, store } = newGame(4);
+    playUntil(game, 60 * 10, () => game.pushers.extension(1) < 0.02 && game.t > 1);
+    expect(game.pushers.extension(1)).toBeLessThan(0.02);
+    game.persist();
+    const { game: again } = newGame(4, store.json);
+    const inside = (g: typeof game) => {
+      let n = 0;
+      for (let i = 0; i < g.world.count; i++) {
+        if (!g.world.alive[i]) continue;
+        for (const box of g.pushers.boxes)
+          if (
+            Math.abs(g.world.y[i] - box.y) < box.hy - 0.1 &&
+            Math.abs(g.world.z[i] - box.z) < box.hz - 0.1 &&
+            Math.abs(g.world.x[i] - box.x) < box.hx
+          )
+            n++;
+      }
+      return n;
+    };
+    expect(inside(again), 'coins inside a pusher as it loads').toBe(0);
+    settle(again, 120);
+    expect(inside(again), 'coins inside a pusher two seconds on').toBe(0);
     expect(checkInvariants(again)).toEqual([]);
   });
 });

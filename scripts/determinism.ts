@@ -71,6 +71,10 @@ export function hashGame(game: Game): string {
     eat(world.vx[i]);
     eat(world.vy[i]);
     eat(world.vz[i]);
+    eat(world.q[i * 4]);
+    eat(world.q[i * 4 + 1]);
+    eat(world.q[i * 4 + 2]);
+    eat(world.q[i * 4 + 3]);
     eat(world.asleep[i]);
   }
   eat(board.count);

@@ -41,8 +41,8 @@ export interface FuzzResult {
   happened: Record<string, number>;
 }
 
-/** Play `frames` frames of the game at random from `seed`. */
-export function fuzz(seed: number, frames: number): FuzzResult {
+/** Play `frames` frames of the game at random from `seed`. `look` is handed the game as it stands when a rule breaks, for whoever wants to see why. */
+export function fuzz(seed: number, frames: number, look?: (game: Game) => void): FuzzResult {
   // the monkey's own chance, apart from the game's, so what it decides does not shift what the game does
   const random = seeded(seed * 7 + 1);
   const happened: Record<string, number> = {};
@@ -120,9 +120,11 @@ export function fuzz(seed: number, frames: number): FuzzResult {
       [
         1,
         () => {
-          // saved, and loaded again into a new game as a reload would: the hand, the winnings and every coin must be kept
+          // saved, and loaded again into a new game as a reload would: the hand, the winnings and every coin must
+          // be kept, and every pusher where it was, or the coins come back inside one
           const { hand, banked } = game.progress.save;
           const coins = game.world.live + game.board.count;
+          const pushers = game.pushers.boxes.map((box) => box.y);
           game.persist();
           store = memoryStore(store.json);
           game = new Game(new Progress(store), events, { random: seeded(seed + frame) });
@@ -132,6 +134,10 @@ export function fuzz(seed: number, frames: number): FuzzResult {
             throw new Error(`the winnings were ${banked} and loaded as ${game.progress.save.banked}`);
           if (game.world.live + game.board.count !== coins)
             throw new Error(`${coins} coins were saved and ${game.world.live + game.board.count} loaded`);
+          game.pushers.boxes.forEach((box, k) => {
+            if (Math.abs(box.y - pushers[k]) > 1e-9)
+              throw new Error(`the pusher on tier ${k} was at ${pushers[k]} and loaded at ${box.y}`);
+          });
           did('reload');
         },
       ],
@@ -153,7 +159,10 @@ export function fuzz(seed: number, frames: number): FuzzResult {
       game.step(DT, { funnel: null, drop: held });
       if (frame % CHECK_EVERY === 0) {
         const problems = checkInvariants(game);
-        if (problems.length) return fail(problems);
+        if (problems.length) {
+          look?.(game);
+          return fail(problems);
+        }
       }
     }
     return { seed, frames, failure: null, done, happened };

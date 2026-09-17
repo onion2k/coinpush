@@ -9,7 +9,8 @@ import { DT, newGame } from './helpers';
 
 describe('the same seed gives the same game', () => {
   it('plays out the same, twice from a seed, all the way down to the last coin', () => {
-    const run = playTwice({ seed: 3, frames: 1200, every: 100 });
+    // ten seconds of it: the gate plays the minutes, and this holds the tool that plays them
+    const run = playTwice({ seed: 3, frames: 600, every: 50 });
     expect(run.diverged, run.note).toBe(null);
     expect(run.checkpoints.length).toBe(12);
   });

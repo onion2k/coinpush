@@ -19,7 +19,8 @@ export class Pushers {
       y: pusherFront(k, 0) + PUSHER.length / 2,
       z: tier.z + PUSHER.height / 2,
       yaw: 0,
-      hx: HALF,
+      // wider than the machine, so its ends are inside the walls and never the nearest way out of it
+      hx: HALF + 2,
       hy: PUSHER.length / 2,
       hz: PUSHER.height / 2,
       vx: 0,
@@ -34,6 +35,16 @@ export class Pushers {
   /** How far out a tier's pusher is, 0 back to 1 at its fullest reach, at the time last stepped to. */
   extension(k: number): number {
     return pusherExtension(k, this.t);
+  }
+
+  /** Every box put where it is at game time `t`, standing still: where a machine loaded from a save starts from. */
+  place(t: number) {
+    this.t = t;
+    for (let k = 0; k < TIERS; k++) {
+      const box = this.boxes[k];
+      box.y = box.py = pusherFront(k, t) + PUSHER.length / 2;
+      box.vy = 0;
+    }
   }
 
   /** Every box where it is at game time `t`, moving as fast as it did to get there. */

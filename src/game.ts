@@ -18,11 +18,13 @@ import {
   KIND_RADIUS,
   PINS,
   SAVE_EVERY,
+  SETTLE,
   TIER,
   TIERS,
   buildTiles,
   fillPositions,
   pusherFront,
+  rainPositions,
   type Tiles,
 } from './machine';
 import { makeWorld, type World } from './physics';
@@ -54,7 +56,7 @@ export interface GameEvents {
 
 /** How fast a pusher must be advancing to wake what is ahead of it, how far ahead, and how high above the tier's floor. */
 const WAKE_SPEED = 0.3,
-  WAKE_RADIUS = 4.5,
+  WAKE_RADIUS = 1.5,
   WAKE_HEIGHT = 3;
 
 export interface GameOptions {
@@ -88,16 +90,56 @@ export class Game {
     this.world = makeWorld(this.tiles, random);
     this.board = new Board({ ...BOARD, pins: PINS, capacity: BOARD_CAPACITY, radius: KIND_RADIUS[COIN], random });
     this.world.pushers = this.pushers.boxes;
-    this.pushers.step(0);
-    const { coins, flight } = progress.save;
+    const { coins, tilts, flight, time } = progress.save;
+    // The machine as it was saved starts at the time it was saved, which is where its pushers were. Put back to
+    // the start of their strokes instead, the second tier's comes down on four rows of the coins it had left.
+    if (coins.length) this.t = this.savedAt = time;
+    this.pushers.place(this.t);
     if (coins.length) {
-      // the machine as it was saved, coin by coin
-      for (let i = 0; i + 2 < coins.length; i += 3) this.world.spawn(COIN, coins[i], coins[i + 1], coins[i + 2]);
+      // the machine as it was saved, coin by coin, each lying as it lay, or flat if the save does not say
+      for (let i = 0; i + 2 < coins.length; i += 3) {
+        const slot = this.world.spawn(COIN, coins[i], coins[i + 1], coins[i + 2]);
+        if (slot < 0) continue;
+        if (tilts.length) this.lay(slot, tilts[i], tilts[i + 1], tilts[i + 2]);
+        else this.world.setOrientation(slot, 0, 0, 0, 1);
+      }
       for (let i = 0; i + 3 < flight.length; i += 4)
         this.board.put(flight[i], flight[i + 1], flight[i + 2], flight[i + 3]);
-    } else {
-      for (const [x, y, z] of fillPositions(random)) this.world.spawn(COIN, x, y, z);
+    } else this.prime(random);
+  }
+
+  /**
+   * A new machine: its beds laid flat, more coins rained onto them, and the
+   * lot left to settle, the pushers standing still and no game time passing,
+   * until it is at rest. A bed laid flat and nothing else is a machine
+   * nobody has played; what the first frame shows has coins lying on coins
+   * and leaning on them, as the physics leaves them. Anything rained off an
+   * edge into the chute in the settling is won like any other.
+   */
+  private prime(random: Random) {
+    const { world } = this;
+    for (const [x, y, z] of fillPositions(random)) {
+      // put down flat, not dropped: a bed is coins lying
+      const slot = world.spawn(COIN, x, y, z);
+      if (slot >= 0) world.setOrientation(slot, 0, 0, 0, 1);
     }
+    for (const [x, y, z] of rainPositions(random)) world.spawn(COIN, x, y, z);
+    this.progress.save.filled = world.live;
+    for (let f = 0; f < SETTLE.frames; f++) {
+      world.step(1 / 60, (_kind, x, y) => this.bank(x, y));
+      if (f % SETTLE.every || f < SETTLE.every * 3) continue;
+      let awake = 0;
+      for (let i = 0; i < world.count; i++) if (world.alive[i] && !world.asleep[i]) awake++;
+      if (!awake) break;
+    }
+  }
+
+  /** A coin laid the way `(nx, ny, nz)`, its face looking so: the shortest turn from lying flat, since a coin is the same all the way round. */
+  private lay(slot: number, nx: number, ny: number, nz: number) {
+    const l = Math.hypot(nx, ny, nz) || 1;
+    const w = 1 + nz / l;
+    if (w < 1e-6) this.world.setOrientation(slot, 1, 0, 0, 0);
+    else this.world.setOrientation(slot, -ny / l, nx / l, 0, w);
   }
 
   /** One frame of `dt` seconds, with the player doing so. */
@@ -113,11 +155,13 @@ export class Game {
   }
 
   /**
-   * What lies ahead of an advancing pusher wakes before the face arrives. A
-   * bed asleep is a wall to a slow push, by the physics' own rule, so a
-   * face that crept into sleepers would pile them up rather than move them;
-   * awake, the bed flows. The band is the tier's own, so the tiers above
-   * and below sleep on.
+   * What lies just ahead of an advancing pusher wakes before the face
+   * arrives, so the first coins it meets are moved and not leant on: a coin
+   * asleep is a wall to a slow push, by the physics' own rule. Only just
+   * ahead: a row pushed from behind wakes the coin in front of it by itself,
+   * and waking the whole bed for the whole advance kept a third of the
+   * machine awake and cost three times as much a frame. The band is the
+   * tier's own, so the tiers above and below sleep on.
    */
   private wakeAhead() {
     for (let k = 0; k < TIERS; k++) {
@@ -173,16 +217,21 @@ export class Game {
   /** The save written now: the hand and the winnings, and every coin where it is. */
   persist() {
     const { world, board } = this;
-    const coins: number[] = [];
+    const coins: number[] = [],
+      tilts: number[] = [];
     for (let i = 0; i < world.count; i++) {
       if (!world.alive[i]) continue;
       coins.push(near(world.x[i]), near(world.y[i]), near(world.z[i]));
+      const [nx, ny, nz] = world.axis(i);
+      tilts.push(near(nx), near(ny), near(nz));
     }
     const flight: number[] = [];
     for (let i = 0; i < board.count; i++)
       flight.push(near(board.x[i]), near(board.h[i]), near(board.vx[i]), near(board.vh[i]));
     this.progress.save.coins = coins;
+    this.progress.save.tilts = tilts;
     this.progress.save.flight = flight;
+    this.progress.save.time = this.t;
     this.progress.persist();
     this.dirty = false;
     this.savedAt = this.t;

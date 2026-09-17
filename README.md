@@ -28,9 +28,11 @@ the pins and lands somewhere along the top tier, where the pusher carries
 it forward and the step face behind sweeps it off into the bed. Each bed is
 pushed toward its edge a little for every coin that joins it, and what goes
 over lands on the tier below, and from the bottom tier into the chute,
-where it is yours again. The machine is primed with about fifteen hundred
-coins and holds four thousand; when your hand is empty it gives you
-twenty-five more. Drag to look round it, wheel to zoom.
+where it is yours again. Coins are coins and not beads: they lie on each
+other, lean, lap over and stand on edge in the heap, so a bed builds up and
+gives way as one. The machine is primed with about fourteen hundred coins
+and holds four thousand; when your hand is empty it gives you twenty-five
+more. Drag to look round it, wheel to zoom.
 
 ## Running it
 

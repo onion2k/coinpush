@@ -8,7 +8,18 @@
  * repo with a version bump here.
  */
 import { World, type WorldOptions } from 'artshape-physics/world';
-import { BODY_CAPACITY, BOTTOM, COLS, KIND_RADIUS, ORIGIN_X, ORIGIN_Y, ROWS, TILE, type Tiles } from './machine';
+import {
+  BODY_CAPACITY,
+  BOTTOM,
+  COLS,
+  KIND_RADIUS,
+  KIND_THICKNESS,
+  ORIGIN_X,
+  ORIGIN_Y,
+  ROWS,
+  TILE,
+  type Tiles,
+} from './machine';
 import type { Random } from './random';
 
 export { World, type Pusher } from 'artshape-physics/world';
@@ -22,6 +33,7 @@ export function makeWorld(tiles: Tiles, random: Random): World {
     floor: tiles.floor,
     bottom: BOTTOM,
     radii: KIND_RADIUS,
+    thickness: KIND_THICKNESS,
     random,
     // the hash cell a coin and a bit across, since every body is a coin
     tuning: { cell: 1.2 },

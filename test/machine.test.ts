@@ -13,10 +13,13 @@ import {
   COLS,
   FILL,
   FRONT,
+  HALF,
   KIND_RADIUS,
+  KIND_THICKNESS,
   PINS,
   PIT,
   PUSHER,
+  RAIN,
   ROWS,
   STEP,
   TIER,
@@ -24,12 +27,16 @@ import {
   buildTiles,
   fillPositions,
   floorAt,
+  pusherFront,
+  pusherTop,
+  rainPositions,
   tierAt,
   wallAt,
 } from '../src/machine';
 import { seeded } from '../src/random';
 
-const R = KIND_RADIUS[0];
+const R = KIND_RADIUS[0],
+  H = KIND_THICKNESS[0];
 
 describe('the machine', () => {
   it('steps its tiers down from the back to the chute, edge to edge', () => {
@@ -88,22 +95,65 @@ describe('the machine', () => {
     expect(BOARD.reach + R).toBeLessThan(BOARD.half);
   });
 
-  it('primes the machine with coins over the floors of their tiers, thousands of them', () => {
+  it('primes the machine with beds two layers deep clear of the pushers, and a row along the back of each pusher, fourteen hundred in all', () => {
     const tiles = buildTiles();
     const coins = fillPositions(seeded(1));
-    expect(coins.length).toBe(FILL);
-    expect(FILL).toBeGreaterThanOrEqual(1200);
-    const onTier = new Array<number>(TIERS).fill(0);
+    expect(coins.length + RAIN.each * TIERS).toBe(FILL);
+    expect(FILL).toBeGreaterThanOrEqual(1400);
+    const first = new Array<number>(TIERS).fill(0),
+      second = new Array<number>(TIERS).fill(0),
+      riding = new Array<number>(TIERS).fill(0);
     for (const [x, y, z] of coins) {
       const k = tierAt(y);
       expect(k, `coin at ${x},${y}`).toBeGreaterThanOrEqual(0);
       expect(wallAt(tiles, x, y, z), `coin at ${x},${y},${z} in a wall`).toBe(false);
-      expect(z).toBeGreaterThanOrEqual(TIER[k].z + R - 1e-6);
-      onTier[k]++;
+      if (z > pusherTop(k)) {
+        // on the pusher's top, lying flat, in the strip against the step face that the top never leaves
+        expect(z).toBeLessThan(pusherTop(k) + H);
+        expect(y - R).toBeGreaterThan(TIER[k].back - (PUSHER.length - PUSHER.travel));
+        expect(y + R).toBeLessThan(TIER[k].back);
+        riding[k]++;
+        continue;
+      }
+      // lying flat on the floor or on the layer below, and in front of the pusher's face as the game starts: never inside it
+      expect(z).toBeGreaterThanOrEqual(TIER[k].z + H / 2 - 1e-6);
+      expect(z).toBeLessThan(TIER[k].z + H * 2);
+      expect(y, `coin at ${x},${y} inside tier ${k}'s pusher`).toBeLessThan(pusherFront(k, 0) - R);
+      expect(y - R, 'and not over the edge').toBeGreaterThan(TIER[k].front);
+      if (z < TIER[k].z + H) first[k]++;
+      else second[k]++;
     }
-    for (const n of onTier) expect(n).toBeGreaterThan(200);
-    // the same seed lays them the same way; another seed a little differently
+    for (let k = 0; k < TIERS; k++) {
+      expect(first[k]).toBeGreaterThan(200);
+      // a second layer on something like a third of the first, and a row the width of the machine on the pusher
+      expect(second[k] / first[k]).toBeGreaterThan(0.2);
+      expect(second[k] / first[k]).toBeLessThan(0.45);
+      expect(riding[k]).toBeGreaterThan(40);
+    }
+    // the same seed lays them the same way; another seed a little differently, and as many
     expect(fillPositions(seeded(1))).toEqual(coins);
     expect(fillPositions(seeded(2))).not.toEqual(coins);
+    expect(fillPositions(seeded(2))).toHaveLength(coins.length);
+  });
+
+  it('rains more onto each bed from a little above it, clear of the edge and of the pusher', () => {
+    const rain = rainPositions(seeded(1));
+    expect(rain).toHaveLength(RAIN.each * TIERS);
+    const onTier = new Array<number>(TIERS).fill(0);
+    for (const [x, y, z] of rain) {
+      const k = tierAt(y);
+      expect(k).toBeGreaterThanOrEqual(0);
+      onTier[k]++;
+      expect(Math.abs(x)).toBeLessThan(HALF - R);
+      expect(y, 'clear of the edge, or it would be rained straight off it').toBeGreaterThan(
+        TIER[k].front + RAIN.clear - 1e-6,
+      );
+      expect(y, 'and of the pusher').toBeLessThan(pusherFront(k, 0) - R);
+      expect(z).toBeGreaterThan(TIER[k].z + H);
+      expect(z).toBeLessThan(TIER[k].z + 3);
+    }
+    for (const n of onTier) expect(n).toBe(RAIN.each);
+    expect(rainPositions(seeded(1))).toEqual(rain);
+    expect(rainPositions(seeded(2))).not.toEqual(rain);
   });
 });

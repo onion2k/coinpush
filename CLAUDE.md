@@ -10,7 +10,10 @@ rules in `~/.claude/CLAUDE.md` apply too.
 
 The machine is in place: three tiers stepping down to a chute, a pusher on
 each, a backboard of pins with a funnel sliding along its top, and about
-fifteen hundred coins primed on the beds. What comes next builds on it.
+fourteen hundred coins primed on the beds. A coin is a rigid disc to the
+physics, so the beds pile: coins lie on coins, lean on each other and stand
+on edge between them, and a coin is drawn exactly as the physics has it, so
+nothing seen cuts into anything. What comes next builds on it.
 
 ## The factory
 
@@ -93,11 +96,13 @@ change meant to move it, and the commit says why. Look at every picture.
   the pushers' stroke, each a box the physics shoves with. The save lives
   in `progress.ts`. Chance comes from `random.ts`, handed in.
 - `src/physics.ts` is the game's side of artshape-physics, and nothing else
-  imports the package directly. The machine needs the package at v0.2.0:
+  imports the package directly. The machine needs the package at v0.3.0:
   floor heights a tile, so a step is a wall from below and an edge from
-  above; a bottom below which a body has left the world; and a box that
-  carries what rests on its top. A change a package needs goes in that
-  repo, with a version bump here.
+  above; a bottom below which a body has left the world; a box that carries
+  what rests on its top; and a kind with a thickness, which is a coin — a
+  rigid disc with its own orientation and spin, which lies, leans, stands on
+  edge and piles. A change a package needs goes in that repo, with a version
+  bump here.
 
 ## Skills
 
@@ -111,10 +116,11 @@ before anything is written; **/commit** commits in the house style.
 What to copy the shape of, when building something new:
 
 - **In the machine:** the coin and the pusher. The coin is a body kind in
-  `machine.ts`, drawn by `scene.ts` from the physics' own orientation,
-  banked by `game.ts` when it falls out of the bottom, counted and
-  conserved by `invariants.ts`, read by `debug.ts`, and pictured in
-  `smoke/look.spec.ts`. The pusher is a stroke in `machine.ts`, a box in
+  `machine.ts` with a radius and a thickness, drawn by `scene.ts` at that
+  size and the physics' own orientation, banked by `game.ts` when it falls
+  out of the bottom, counted and conserved by `invariants.ts`, read by
+  `debug.ts` with how far it leans, and pictured in `smoke/look.spec.ts`
+  twice: the whole machine, and a bed up close. The pusher is a stroke in `machine.ts`, a box in
   `pushers.ts` handed to the physics, drawn by `scene.ts`, and read by
   `debug.ts` as how far out it is.
 - **Tools:** the fuzzer (`scripts/fuzzer.ts`) and the pace gate
@@ -130,10 +136,11 @@ What to copy the shape of, when building something new:
 `slide(x)`, `feed(on)` for the drop held down, `place(slot, x, y, z?)`,
 `give(n)` coins into the hand, `fill(n)` coins into the machine, `save()`.
 Reading: `state()` for the hand, the winnings, the funnel and the pushers,
-`bodies()` with each coin's tier, `board()` for the coins falling,
-`content()` for where everything is, `events()` and `invariants()`. The
-camera: `look(x, y, z, view)` and `measureFrame()`. `standardView` in
-`smoke/game.ts` is the view the perf and look gates use.
+`bodies()` with each coin's tier and `tilt`, how far it leans from flat in
+radians, `board()` for the coins falling, `content()` for where everything
+is, `events()` and `invariants()`. The camera: `look(x, y, z, view)` and
+`measureFrame()`. `standardView` in `smoke/game.ts` is the view the perf
+and look gates use.
 
 ## Rules for the code
 
@@ -181,9 +188,12 @@ For anything new in the machine, check what it does:
   face as it comes forward; pinned between a face and the step; pushed onto
   the tier below
 - **the edge:** over the front, banked; off the side; balanced on the lip
-- **stacking:** on another coin; a heap on the platform; a heap pushed as one
+- **stacking:** on another coin; a heap on the platform; a heap pushed as
+  one; leaning on another, on edge between two, tipping off an overhang;
+  nothing at rest cutting into anything, the coin being drawn as it is
 - **save:** saved, reloaded, and loaded from an old save without the field;
-  thousands of coins saved and put back where they were
+  thousands of coins saved and put back where they were, lying as they lay,
+  with the pushers where they were in their stroke
 - **rock:** against the walls and in the corners; never left in a wall or a
   peg
 - **scale:** thousands at once, at capacity (`BODY_CAPACITY`); what it costs

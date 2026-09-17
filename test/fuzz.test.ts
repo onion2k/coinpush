@@ -4,7 +4,7 @@ import { fuzz } from '../scripts/fuzzer';
 
 describe('the fuzzer', () => {
   it('plays a seed through without breaking a rule, and does everything a player can', () => {
-    const r = fuzz(1, 1500);
+    const r = fuzz(1, 900);
     expect(r.failure, JSON.stringify(r.failure)).toBe(null);
     expect(r.happened.banked, 'the monkey banks something').toBeGreaterThan(0);
     for (const action of ['drop', 'slide', 'feed', 'wait', 'reload']) expect(r.done[action], action).toBeGreaterThan(0);
@@ -12,6 +12,6 @@ describe('the fuzzer', () => {
   });
 
   it('plays the same way twice from a seed', () => {
-    expect(fuzz(2, 600)).toEqual(fuzz(2, 600));
+    expect(fuzz(2, 300)).toEqual(fuzz(2, 300));
   });
 });

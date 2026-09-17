@@ -32,6 +32,23 @@ describe('the pushers', () => {
     expect(most).toBeCloseTo(1, 2);
   });
 
+  it('is placed at a time standing still, where a stroke from the start would have it arriving at speed', () => {
+    const p = new Pushers(),
+      stepped = new Pushers();
+    p.place(PUSHER.period * 0.3);
+    stepped.step(PUSHER.period * 0.3);
+    for (let k = 0; k < TIERS; k++) {
+      expect(p.boxes[k].y).toBe(stepped.boxes[k].y);
+      expect(p.boxes[k].py).toBe(p.boxes[k].y);
+      expect(p.boxes[k].vy).toBe(0);
+      expect(p.extension(k)).toBe(stepped.extension(k));
+    }
+    // and from there it strokes on as ever
+    p.step(PUSHER.period * 0.3 + 1 / 60);
+    stepped.step(PUSHER.period * 0.3 + 1 / 60);
+    for (let k = 0; k < TIERS; k++) expect(p.boxes[k].vy).toBeCloseTo(stepped.boxes[k].vy, 6);
+  });
+
   it('runs each tier on its own phase, so they are not all out at once', () => {
     const p = new Pushers();
     p.step(0);

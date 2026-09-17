@@ -1,10 +1,11 @@
 /**
  * What the player has, and where it is kept: the coins in hand, what has
- * been won, what the machine has given, and every coin in the machine and
- * on the board, in the browser's storage or, for the game run without a
- * page, anywhere. Old saves must still load: a field a save does not have
- * takes its default, and a field it has that the game no longer knows is
- * left alone.
+ * been won, what the machine has given, every coin in the machine with how
+ * it lies, every coin on the board, and the time, which is where the pushers
+ * are; in the browser's storage or, for the game run without a page,
+ * anywhere. Old saves must still load: a field a save does not have takes
+ * its default, and a field it has that the game no longer knows is left
+ * alone.
  */
 import { HAND0, TOP_UP } from './machine';
 
@@ -17,8 +18,20 @@ export interface Save {
   given: number;
   /** Every coin in the machine: x, y, z, three numbers each. */
   coins: number[];
+  /** How each of them lies: the way its face looks, three numbers each, in the coins' order. None, and they lie flat. */
+  tilts: number[];
   /** Every coin on the board: x, how far down, and its speed both ways, four numbers each. */
   flight: number[];
+  /** Game time, in seconds: where every pusher is in its stroke, so the coins come back to the pushers they left. */
+  time: number;
+  /**
+   * How many coins the machine was primed with when this game began: what
+   * the hand, the machine and the board are balanced against, with what has
+   * been given. The save's own figure, since the fill is content and
+   * changes, and a game begun under another fill is none the worse for it.
+   * Nothing, until a machine has been primed.
+   */
+  filled: number;
 }
 
 /** Where the save is kept. */
@@ -73,7 +86,16 @@ export function memoryStore(json: string | null = null): SaveStore & { json: str
   };
 }
 
-const fresh = (): Save => ({ hand: HAND0, banked: 0, given: HAND0, coins: [], flight: [] });
+const fresh = (): Save => ({
+  hand: HAND0,
+  banked: 0,
+  given: HAND0,
+  coins: [],
+  tilts: [],
+  flight: [],
+  time: 0,
+  filled: 0,
+});
 
 /** A number from a save, or the default where it is missing or not a number. */
 function number(from: Record<string, unknown>, key: string, or: number): number {
@@ -115,7 +137,15 @@ export class Progress {
     this.save.banked = number(from, 'banked', d.banked);
     this.save.given = number(from, 'given', d.given);
     this.save.coins = numbers(from, 'coins', 3);
+    // a tilt for every coin or none at all: a coin given another's tilt is worse off than one laid flat
+    const tilts = numbers(from, 'tilts', 3);
+    this.save.tilts = tilts.length === this.save.coins.length ? tilts : [];
     this.save.flight = numbers(from, 'flight', 4);
+    this.save.time = Math.max(0, number(from, 'time', d.time));
+    // a save from before it said what its machine was filled with is taken to balance as it stands
+    const { hand, given, coins, flight } = this.save;
+    const filled = number(from, 'filled', d.filled);
+    this.save.filled = filled > 0 ? filled : coins.length ? hand + coins.length / 3 + flight.length / 4 - given : 0;
   }
 
   get hand() {

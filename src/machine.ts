@@ -32,12 +32,17 @@ export const STEP = 4;
  */
 export const PUSHER = { length: 6, travel: 5, height: 1.6, period: 5, phase: [0, 0.4, 0.75] };
 /**
- * The floor in front of the pusher at its fullest reach, up to the edge:
- * short, since a push through a bed of balls dies out in a few rows. At
- * eight the machine jams and pays nothing, measured; at six and a half it
- * pays about a coin for a coin fed.
+ * The floor in front of the pusher at its fullest reach, up to the edge,
+ * which is all of a tier its bed lies on once the machine is running: what
+ * is behind it the pusher sweeps clear every stroke. A bed of coins pays a
+ * coin for a coin only once it lies nearly two deep from the pusher's reach
+ * to the edge; shallower, what is pushed into its back climbs onto it and
+ * nothing moves at the front. So the shelf sets how many coins the machine
+ * holds at rest, and what a frame of it costs: at six and a half it came to
+ * rest at twenty-five hundred coins and more than three milliseconds a
+ * frame, measured, and at four and a half at sixteen hundred and two.
  */
-export const SHELF = 6.5;
+export const SHELF = 4.5;
 /** A tier, from its back edge (the step face behind it) to its front edge. */
 export const DEPTH = PUSHER.length + SHELF;
 /** Tiles of pit in front of the bottom tier: the chute. */
@@ -70,11 +75,13 @@ export const ROWS = (BACK - ORIGIN_Y) / TILE + WALL;
 
 /** The kinds of body there are, one radius each, and what each is called: coins, and only coins. */
 export const KIND_RADIUS = [0.42];
+/** How thick each kind is: a coin is a disc to the physics, with a turn of its own, and lies, leans and piles as one. */
+export const KIND_THICKNESS = [0.24];
 export const KIND_NAME = ['coin'];
 export const COIN = 0;
 export const KINDS = KIND_RADIUS.length;
-/** How a coin is drawn: a little wider than the ball it is to the physics, and thick enough to read as a coin. */
-export const COIN_LOOK = { radius: 0.5, thickness: 0.24 };
+/** How a coin is drawn: exactly as the physics has it, so nothing drawn cuts into anything else. */
+export const COIN_LOOK = { radius: KIND_RADIUS[0], thickness: KIND_THICKNESS[0] };
 /** The most coins the machine can hold. */
 export const BODY_CAPACITY = 4000;
 
@@ -190,45 +197,108 @@ export function pusherFront(k: number, t: number): number {
   return TIER[k].back + PUSHER.travel * (1 - pusherExtension(k, t)) - PUSHER.length;
 }
 
-/** How close together the primed coins lie: a hair apart, so they settle without a pop. */
-const PITCH = 0.9,
-  ROW = 0.8;
+/**
+ * How close together the primed coins lie: a hair apart, so they settle
+ * without a pop, and no more than a hair, since a bed laid loose takes up
+ * the first minute's strokes in closing up before anything moves at its edge.
+ */
+const PITCH = 0.87,
+  ROW = 0.76;
 /** How far in from the side walls, the step faces and the edges the primed coins keep. */
 const MARGIN = 0.6;
 /**
  * How far inside each pusher's fullest reach the primed bed begins: the
- * first strokes push a row or two over each edge, a small welcome of some
- * fifty coins in the first minute, and after that the beds move only as
- * fed coins are swept into them, which is the balance a coin pusher lives
- * on. A second layer of coins anywhere on a bed was measured to turn into
- * payout, hundreds in a minute, so the beds are primed one deep.
+ * first strokes push a row over each edge, a small welcome, and after that
+ * the beds move only as fed coins are swept into them, which is the balance
+ * a coin pusher lives on.
  */
-const PRIME = 2.5;
+const PRIME = 0.75;
+/**
+ * How much of a second layer is laid on each bed, as the share of its places
+ * that have a coin, and how far it keeps from the edge. A machine that has
+ * been running lies more than one deep right up to its edges, measured, and
+ * one primed with a single layer pays nothing for six minutes while what is
+ * fed fills it up: so it is primed about as deep as it runs. With the rain
+ * it holds fourteen hundred, where a machine fed for ten minutes holds
+ * thirteen and a half; primed deeper it pays out the difference first.
+ */
+const SECOND = { share: 0.4, clear: 0.5 };
+/**
+ * The coins rained onto each bed as the machine is primed: how many a tier,
+ * from how high above the floor, and how far they keep from the edge, so
+ * none is rained straight off it. Beds laid flat are a machine nobody has
+ * played; these land as coins do, on the bed and on each other, lying,
+ * leaning and lapped, and the game lets them settle before its first frame.
+ */
+export const RAIN = { each: 40, from: 1, to: 2, clear: 1.2 };
+/** How long the primed machine is given to settle before the game begins, in frames, and how often it is looked at to see whether it has. */
+export const SETTLE = { frames: 240, every: 10 };
+
+/** Where a tier's primed bed begins: in front of the pusher's face as the game starts, and never inside the pusher, where a coin has no way out that is not through something. */
+function bedBack(k: number): number {
+  return Math.min(pusherFront(k, 0) - MARGIN, TIER[k].back - PUSHER.length + PRIME);
+}
 
 /**
  * Where the machine's coins lie when it is primed: a bed of them on each
  * tier's shelf from just inside the pusher's fullest reach right up to the
  * edge, a hair apart in staggered rows, jittered a little so no two games
- * are quite alike. The pushers' tops start bare: what lands there comes
- * from the board.
+ * are quite alike, most of a second layer on it, and a row along the back
+ * of each pusher's top.
  */
 export function fillPositions(random: Random): [number, number, number][] {
-  const r = KIND_RADIUS[COIN];
+  const r = KIND_THICKNESS[COIN] / 2;
   const out: [number, number, number][] = [];
   const bed = (y0: number, y1: number, z: number) => {
     for (let y = y0, row = 0; y >= y1; y -= ROW, row++) {
       const offset = row % 2 ? PITCH / 2 : 0;
       for (let x = -HALF + MARGIN + offset; x <= HALF - MARGIN; x += PITCH)
-        out.push([x + (random() - 0.5) * 0.06, y + (random() - 0.5) * 0.06, z]);
+        out.push([x + (random() - 0.5) * 0.03, y + (random() - 0.5) * 0.03, z]);
     }
   };
   for (let k = 0; k < TIERS; k++) {
     const t = TIER[k];
-    // the shelf, from just inside the pusher's fullest reach to just short of the edge
-    bed(t.back - PUSHER.length + PRIME, t.front + MARGIN, t.z + r + 0.002);
+    bed(bedBack(k), t.front + MARGIN, t.z + r + 0.002);
+  }
+  // A row along the back of each pusher's top, against the step face, where the face never sweeps: a machine
+  // that has been running keeps a row there, and what lands behind it is what pushes coins off the pusher's lip
+  // and into the bed. Without it a new machine pays nothing until sixty coins a tier have filled it.
+  for (let k = 0; k < TIERS; k++) {
+    const y = TIER[k].back - MARGIN + 0.1;
+    for (let x = -HALF + MARGIN; x <= HALF - MARGIN; x += PITCH)
+      out.push([x + (random() - 0.5) * 0.06, y + (random() - 0.5) * 0.04, pusherTop(k) + r + 0.002]);
+  }
+  // and a second layer over the first, in the hollows between its coins: its share of the places, which ones by chance
+  for (let k = 0; k < TIERS; k++) {
+    const t = TIER[k];
+    const from = out.length;
+    bed(bedBack(k) - ROW / 2, t.front + MARGIN + SECOND.clear, t.z + r * 3 + 0.004);
+    const keep = from + Math.round((out.length - from) * SECOND.share);
+    for (let i = from; i < keep; i++) {
+      const j = i + Math.floor(random() * (out.length - i));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    out.length = keep;
   }
   return out;
 }
 
-/** How many coins the machine is primed with: the layout's count, whatever the jitter. */
-export const FILL = fillPositions(() => 0.5).length;
+/** Where the coins rained onto the beds start from: over each bed, clear of its edge, a little above it. */
+export function rainPositions(random: Random): [number, number, number][] {
+  const out: [number, number, number][] = [];
+  for (let k = 0; k < TIERS; k++) {
+    const t = TIER[k];
+    const y0 = t.front + RAIN.clear,
+      y1 = bedBack(k);
+    for (let n = 0; n < RAIN.each; n++)
+      out.push([
+        (random() * 2 - 1) * (HALF - 1),
+        y0 + random() * (y1 - y0),
+        t.z + RAIN.from + random() * (RAIN.to - RAIN.from),
+      ]);
+  }
+  return out;
+}
+
+/** How many coins the machine is primed with: the beds' count, whatever the chance, and the rain. */
+export const FILL = fillPositions(() => 0.5).length + RAIN.each * TIERS;

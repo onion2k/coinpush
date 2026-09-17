@@ -1,12 +1,12 @@
 {
   "the machine running, nothing dropped": {
-    "relative": 0.025998547080986808,
-    "ms": 0.4485,
-    "ref": 17.2522
+    "relative": 0.14859538547255366,
+    "ms": 2.3481,
+    "ref": 15.8022
   },
   "the autopilot feeding coins": {
-    "relative": 0.02831577661597551,
-    "ms": 0.4458,
-    "ref": 15.7432
+    "relative": 0.15988703906511423,
+    "ms": 2.5384,
+    "ref": 15.8762
   }
 }

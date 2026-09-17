@@ -20,7 +20,7 @@ describe('what must always hold', () => {
     expect(checkInvariants(game).join('\n')).toMatch(/in a wall/);
     game.world.x[slot] = x;
     game.world.y[slot] = (TIER[1].back + TIER[1].front) / 2;
-    game.world.z[slot] = TIER[1].z + 0.1;
+    game.world.z[slot] = TIER[1].z + 0.03;
     expect(checkInvariants(game).join('\n')).toMatch(/below its floor/);
     game.world.y[slot] = y;
     game.world.z[slot] = z;
@@ -29,6 +29,25 @@ describe('what must always hold', () => {
     game.world.x[slot] = x;
     game.progress.save.hand = -1;
     expect(checkInvariants(game).join('\n')).toMatch(/the hand is -1/);
+  });
+
+  it('reports two coins at rest cutting into each other, and lets two being shoved be', () => {
+    const { game } = newGame();
+    const { world } = game;
+    const asleep = [...Array(world.count).keys()].filter(
+      (i) => world.alive[i] && world.asleep[i] && Math.abs(world.axis(i)[2]) > 0.999,
+    );
+    const [a, b] = asleep;
+    const was = [world.x[b], world.y[b], world.z[b]];
+    // the second put half across the first, in the same plane: a third of a unit into it
+    world.x[b] = world.x[a] + 0.5;
+    world.y[b] = world.y[a];
+    world.z[b] = world.z[a];
+    expect(checkInvariants(game).join('\n')).toMatch(/at rest.* into/);
+    // awake, it is being put right, and that is not a rule broken
+    world.wake(b);
+    expect(checkInvariants(game).join('\n')).not.toMatch(/at rest.* into/);
+    [world.x[b], world.y[b], world.z[b]] = was;
   });
 
   it('reports coins made or lost, and a funnel out of reach', () => {

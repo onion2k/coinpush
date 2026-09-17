@@ -62,6 +62,8 @@ export interface Body {
   asleep: boolean;
   /** Which tier it is on, or -1 in the chute or behind the wall. */
   tier: number;
+  /** How far from lying flat it is, in radians: nothing flat, a quarter turn on its edge. */
+  tilt: number;
 }
 
 /** A coin on the board: across, and down from the top. */
@@ -191,6 +193,7 @@ export function createApi(host: DebugHost): GameApi {
           z: world.z[i],
           asleep: !!world.asleep[i],
           tier: tierAt(world.y[i]),
+          tilt: Math.acos(Math.min(1, Math.abs(world.axis(i)[2]))),
         });
       }
       return out;
@@ -237,7 +240,9 @@ export function createApi(host: DebugHost): GameApi {
         const t = TIER[k % TIERS];
         const x = (game.random() * 2 - 1) * (WIDTH / 2 - 1),
           y = t.front + 1 + game.random() * (t.back - t.front - 2);
-        if (world.spawn(COIN, x, y, t.z + 6 + game.random() * 6) < 0) break;
+        // from a little above the tier: a coin is thin, and one rained from far higher than anything falls in play
+        // would be moving faster than anything does
+        if (world.spawn(COIN, x, y, t.z + 2 + game.random() * 2) < 0) break;
         put++;
       }
       progress.save.given += put;

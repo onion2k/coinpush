@@ -55,6 +55,26 @@ test.describe('what it looks like', () => {
     expect(problems).toEqual([]);
   });
 
+  test('a bed up close, played for a while: coins lying on coins, leaning and lapped, none cutting another', async ({
+    page,
+  }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await page.evaluate(() => {
+      const g = window.game!;
+      g.feed(true);
+      g.step(60 * 20);
+      g.feed(false);
+      g.step(120);
+      // the top tier's bed, from just above its edge, looking back along it toward the pusher
+      g.look(-6, -8, 8.6, { azimuth: -Math.PI / 2 + 0.5, polar: 1.15, radius: 9 });
+      g.step(1);
+    });
+    await hideStats(page);
+    await expect(page.locator('#view')).toHaveScreenshot('bed.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
   test.describe('on a phone', () => {
     test.use({ viewport: { width: 400, height: 860 }, hasTouch: true, isMobile: true });
 

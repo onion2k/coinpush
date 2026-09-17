@@ -3,17 +3,59 @@
  * rules that, broken, are a bug whatever the feature was.
  *
  * Every coin is a number, of a kind, out of the walls and the step faces,
- * on or above the floor under it, and above the chute. Every coin on the
+ * its lowest point on or above the floor under it, and above the chute.
+ * No two coins at rest cut into each other. Every coin on the
  * board is on it. Coins are neither made nor lost: the hand, the machine
- * and the board together hold what the machine was filled with and has
- * given. The hand, the winnings and the gifts are whole numbers that make
+ * and the board together hold what the machine was filled with, by the
+ * save's own account, and has given. The hand, the winnings and the gifts are whole numbers that make
  * sense. The funnel is within reach and the pushers within their travel.
  *
  * Checked by the fuzzer after everything it does, by the test API on asking,
  * and by the unit tests. Each broken rule is a line saying what and where.
  */
-import { BOARD, BOTTOM, FILL, HAND0, KINDS, KIND_NAME, KIND_RADIUS, TIERS, floorAt, wallAt } from './machine';
+import {
+  BOARD,
+  BOTTOM,
+  HAND0,
+  KINDS,
+  KIND_NAME,
+  KIND_RADIUS,
+  KIND_THICKNESS,
+  TIERS,
+  floorAt,
+  wallAt,
+  type Tiles,
+} from './machine';
 import type { Game } from './game';
+import type { World } from './physics';
+
+/**
+ * How far a coin's lowest point may be below the floor under it before it
+ * is a rule broken, and how far two coins at rest may be into each other:
+ * a twentieth of a unit, which is as far in as the physics lets a coin go
+ * to sleep, and a hair for the rounding.
+ */
+const SUNK = 0.06,
+  CUT = 0.0501;
+
+/** How far below the floor under it a coin's lowest point is: the low side of its rim, on its lower face. */
+function sunkBy(world: World, tiles: Tiles, i: number): number {
+  const [nx, ny, nz] = world.axis(i);
+  const r = KIND_RADIUS[world.kind[i]],
+    half = KIND_THICKNESS[world.kind[i]] / 2;
+  const across = Math.sqrt(Math.max(0, 1 - nz * nz));
+  const side = nz >= 0 ? 1 : -1;
+  // the way across the coin that goes down the steepest, or none if it lies flat
+  const ux = across > 1e-4 ? (nz * nx) / across : 0,
+    uy = across > 1e-4 ? (nz * ny) / across : 0;
+  const px = world.x[i] + r * ux - side * half * nx,
+    py = world.y[i] + r * uy - side * half * ny,
+    pz = world.z[i] - r * across - half * Math.abs(nz);
+  // a floor standing well above the coin is a step's face to it, not its floor: the floor under its middle then
+  let floor = floorAt(tiles, px, py);
+  if (floor > world.z[i] + r) floor = floorAt(tiles, world.x[i], world.y[i]);
+  return floor - pz;
+}
 
 /** How many broken rules of one sort are reported before the rest are only counted. */
 const EACH = 3;
@@ -44,7 +86,7 @@ export function checkInvariants(game: Game): string[] {
     const values = [world.x[i], world.y[i], world.z[i], world.vx[i], world.vy[i], world.vz[i]];
     if (!values.every(Number.isFinite)) notNumbers.push(at(i));
     else if (wallAt(tiles, world.x[i], world.y[i], world.z[i])) walled.push(at(i));
-    else if (world.z[i] < floorAt(tiles, world.x[i], world.y[i]) + KIND_RADIUS[world.kind[i]] - 0.05) sunk.push(at(i));
+    else if (sunkBy(world, tiles, i) > SUNK) sunk.push(at(i));
     else if (world.z[i] <= BOTTOM) gone.push(at(i));
   }
   report('not a number', notNumbers);
@@ -52,6 +94,9 @@ export function checkInvariants(game: Game): string[] {
   report('below its floor', sunk);
   report('below the chute', gone);
   if (live !== world.live) out.push(`the world counts ${world.live} live, and has ${live}`);
+  // what is being shoved may be a little into what shoves it, for a step or two; what has come to rest may not
+  const cut = world.deepest(true);
+  if (cut.depth > CUT) out.push(`at rest, ${at(cut.i)} is ${cut.depth.toFixed(2)} into ${at(cut.j)}`);
 
   const flying: string[] = [];
   for (let i = 0; i < board.count; i++) {
@@ -63,14 +108,15 @@ export function checkInvariants(game: Game): string[] {
   }
   report('on the board', flying);
 
-  const { hand, banked, given } = progress.save;
+  const { hand, banked, given, filled } = progress.save;
   if (!Number.isInteger(hand) || hand < 0) out.push(`the hand is ${hand}`);
   if (!Number.isInteger(banked) || banked < 0) out.push(`won ${banked}`);
   if (!Number.isInteger(given) || given < HAND0) out.push(`given ${given}, less than the starting hand`);
   const sum = hand + live + board.count;
-  if (sum !== FILL + given)
+  if (!Number.isInteger(filled) || filled <= 0) out.push(`the machine was filled with ${filled}`);
+  else if (sum !== filled + given)
     out.push(
-      `coins made or lost: hand ${hand} + machine ${live} + board ${board.count} = ${sum}, not the fill ${FILL} + given ${given} = ${FILL + given}`,
+      `coins made or lost: hand ${hand} + machine ${live} + board ${board.count} = ${sum}, not the fill ${filled} + given ${given} = ${filled + given}`,
     );
 
   if (!Number.isFinite(game.funnel) || Math.abs(game.funnel) > BOARD.reach)
