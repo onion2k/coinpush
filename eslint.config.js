@@ -8,7 +8,8 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules'] },
+  // a worktree under .claude is another checkout of all of this, with its own lint
+  { ignores: ['dist', 'node_modules', '.claude/worktrees'] },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
