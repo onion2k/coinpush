@@ -1,0 +1,55 @@
+# Build the game and put it on GitHub Pages, on every push to main.
+#
+# The quick check runs first, the same one the pre-commit hook runs, so a
+# push that breaks the formatting, the types, the lint or a unit test never
+# reaches the page. The gates that need a GPU stay local: a runner's WebGPU
+# is a software one, and nothing measured on it would be true of a player's
+# machine.
+#
+# The page is served under the repository's name, so the build is told that
+# as its base path; a game copied from this one deploys under its own. The
+# artshape packages are git dependencies, and npm fetches them over https,
+# so the runner needs no key for them.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# one deploy at a time, and a newer push supersedes one still building
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check:quick
+      - run: npm run build -- --base=/${{ github.event.repository.name }}/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
