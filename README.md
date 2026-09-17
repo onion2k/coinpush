@@ -11,8 +11,7 @@ coins in the machine at once.
 
 Played at **https://onion2k.github.io/coinpush/**, in a browser with WebGPU:
 current Chrome, Edge and Safari have it, and the boot screen says so if
-yours does not. What is there today is the stub described below, not the
-pusher yet.
+yours does not.
 
 Built on [artshape-render](https://github.com/onion2k/artshape-render) and
 [artshape-physics](https://github.com/onion2k/artshape-physics), from
@@ -20,14 +19,18 @@ Built on [artshape-render](https://github.com/onion2k/artshape-render) and
 a software factory for a browser game that loads fast, draws fast and has
 no bugs, with every check in place from the first commit.
 
-## Where it stands
+## How it plays
 
-The game is still the template's stub: a sled on a square floor, a dozen
-balls and a hole. Drive the sled with W A S D or the arrows and shove the
-balls into the hole; drag to orbit the camera, and wheel to zoom. Running
-it, here or on the page, shows that and not a coin pusher. The pusher
-replaces it one feature at a time, through `/feature`, every check green at
-each step; the content in `src/arena.ts` usually goes first.
+You start with a hundred coins in hand. Move the mouse, or a finger, to
+slide the funnel along the top of the board, and tap, click or press space
+to drop a coin; hold it down for one after another. The coin falls through
+the pins and lands somewhere along the top tier, where the pusher carries
+it forward and the step face behind sweeps it off into the bed. Each bed is
+pushed toward its edge a little for every coin that joins it, and what goes
+over lands on the tier below, and from the bottom tier into the chute,
+where it is yours again. The machine is primed with about fifteen hundred
+coins and holds four thousand; when your hand is empty it gives you
+twenty-five more. Drag to look round it, wheel to zoom.
 
 ## Running it
 
@@ -74,18 +77,19 @@ and the edge cases a new thing has to meet.
     src/main.ts            the page: events into words, the frame drawn
     src/debug.ts           window.game, the test API
     src/invariants.ts      what must always hold
-    src/autopilot.ts       the game played by itself, for the gates
-    src/arena.ts           content: the stub's floor, hole and balls, for now
-    src/sled.ts            the stub's sled, the player's machine, for now
-    src/input.ts           the keyboard
+    src/autopilot.ts       the machine fed by itself, for the gates
+    src/machine.ts         content: the tiers, the pushers' stroke, the board, the coin, the fill
+    src/board.ts           the backboard's own small physics: coins among pins
+    src/pushers.ts         the pushers' stroke, each a box the physics shoves with
+    src/input.ts           the pointer and the keyboard
     src/progress.ts        the save, and where it is kept
     src/random.ts          chance, from one seeded source
     src/physics.ts         the game's side of artshape-physics
-    src/scene.ts           the scene as it is drawn
+    src/scene.ts           the machine as it is drawn
     src/meshes.ts          the few shapes it is drawn with
     src/matrix.ts          placements, as WebGPU reads them
     src/frame-cost.ts      what a frame costs to draw, measured
     scripts/               the gates, each with its baseline beside it
     test/                  unit tests, and a corpus of every save shape
-    smoke/                 Playwright: boots, drives, plays through, looks right, costs what it should
+    smoke/                 Playwright: boots, drops, plays through, looks right, costs what it should
     .github/workflows/     the build put on GitHub Pages, on every push to main

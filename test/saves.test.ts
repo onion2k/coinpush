@@ -20,7 +20,9 @@ const read = (file: string) => readFileSync(new URL(file, DIR), 'utf8');
 
 /** What each save was worth when it was written, and what loading it must keep. */
 const KEPT: Record<string, Record<string, unknown>> = {
-  '01-first.json': { bank: 7, banked: 7 },
+  // the stub's save: what it banked is what has been won, and the rest starts afresh
+  '01-first.json': { banked: 7, hand: 100 },
+  '02-coins.json': { banked: 21, hand: 113, given: 100 },
 };
 
 describe('saves from every shape the game has written', () => {
@@ -33,12 +35,12 @@ describe('saves from every shape the game has written', () => {
       it('loads with what it banked kept', () => {
         const save = new Progress(memoryStore(read(file))).save;
         for (const [key, was] of Object.entries(KEPT[file])) expect(save[key as keyof typeof save]).toEqual(was);
-        expect(Number.isFinite(save.bank) && save.bank >= 0).toBe(true);
+        expect(Number.isFinite(save.hand) && save.hand >= 0).toBe(true);
       });
 
       it('plays on from where it left off, and breaks no rule', () => {
         const game = new Game(new Progress(memoryStore(read(file))), {}, { random: seeded(7) });
-        for (let f = 0; f < 300; f++) game.step(1 / 60, { throttle: 1, steer: 0.3 });
+        for (let f = 0; f < 300; f++) game.step(1 / 60, { funnel: 0.5, drop: f % 30 === 0 });
         expect(checkInvariants(game)).toEqual([]);
       });
 
@@ -46,18 +48,50 @@ describe('saves from every shape the game has written', () => {
         const store = memoryStore(read(file));
         const before = new Progress(store).save;
         expect(store.json, 'loading alone must not write').toBe(read(file));
-        const game = new Game(new Progress(store));
+        const game = new Game(new Progress(store), {}, { random: seeded(1) });
         game.persist();
         const after = new Progress(memoryStore(store.json)).save;
-        expect(after).toEqual(before);
+        const { coins: _c, flight: _f, ...kept } = before;
+        expect(after).toMatchObject(kept);
+        // a save without its coins is a machine primed afresh; one with them comes back as it was
+        expect(after.coins.length / 3).toBe(before.coins.length ? before.coins.length / 3 : game.world.live);
+        expect(after.flight).toEqual(before.flight);
       });
     });
   }
 
   it('takes defaults for what an old save lacks, and shrugs at what it cannot read', () => {
-    expect(new Progress(memoryStore('{"bank": 3}')).save).toEqual({ bank: 3, banked: 0 });
-    expect(new Progress(memoryStore('not json')).save).toEqual({ bank: 0, banked: 0 });
-    expect(new Progress(memoryStore('{"bank": "lots"}')).save).toEqual({ bank: 0, banked: 0 });
+    const fresh = { hand: 100, banked: 0, given: 100, coins: [], flight: [] };
+    expect(new Progress(memoryStore('{"banked": 3}')).save).toEqual({ ...fresh, banked: 3 });
+    expect(new Progress(memoryStore('not json')).save).toEqual(fresh);
+    expect(new Progress(memoryStore('{"hand": "lots"}')).save).toEqual(fresh);
+    // coins that are not numbers, or not in threes, are left out rather than put somewhere
+    expect(new Progress(memoryStore('{"coins": [1, 2, 3, "x", 5, 6, 7]}')).save.coins).toEqual([1, 2, 3]);
+    expect(new Progress(memoryStore('{"flight": [1, 2, 3]}')).save.flight).toEqual([]);
+  });
+
+  it('puts a save with thousands of coins back where they were, at the size the leak watch allows', () => {
+    const game = new Game(new Progress(memoryStore()), {}, { random: seeded(3) });
+    for (let f = 0; f < 120; f++) game.step(1 / 60, { funnel: null, drop: false });
+    game.persist();
+    const json = game.progress.save;
+    expect(json.coins.length / 3).toBe(game.world.live);
+    expect(JSON.stringify(json).length).toBeLessThan(200_000);
+    const again = new Game(new Progress(memoryStore(JSON.stringify(json))), {}, { random: seeded(4) });
+    expect(again.world.live).toBe(game.world.live);
+    let moved = 0;
+    for (let i = 0; i < game.world.count; i++) {
+      if (!game.world.alive[i]) continue;
+      if (
+        Math.hypot(
+          again.world.x[i] - game.world.x[i],
+          again.world.y[i] - game.world.y[i],
+          again.world.z[i] - game.world.z[i],
+        ) > 0.01
+      )
+        moved++;
+    }
+    expect(moved).toBe(0);
   });
 
   it('has the shape the game writes now: a new field means a new file here', () => {

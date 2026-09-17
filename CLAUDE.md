@@ -8,9 +8,9 @@ physics from [artshape-physics](https://github.com/onion2k/artshape-physics).
 The README says what the game is; this file says how it is made. The house
 rules in `~/.claude/CLAUDE.md` apply too.
 
-The game is still the template's stub, a sled and a dozen balls; the first
-features replace it, as "Replacing the stub" says. Where this file still
-describes the stub, it says so.
+The machine is in place: three tiers stepping down to a chute, a pusher on
+each, a backboard of pins with a funnel sliding along its top, and about
+fifteen hundred coins primed on the beds. What comes next builds on it.
 
 ## The factory
 
@@ -41,14 +41,14 @@ The three properties, and what holds each:
 
 Numbers, held by gates, on this machine at 1280×800:
 
-| Property                                               | Budget                         | Held by      |
-| ------------------------------------------------------ | ------------------------------ | ------------ |
-| Boot, page start to the frame loop running             | 3000 ms                        | `perf`       |
-| Download, scripts and styles gzipped                   | 400 kB                         | `perf`       |
-| A frame drawn, lower quartile at the standard view     | 8 ms                           | `perf`       |
-| The physics, a frame, against the reference arithmetic | baseline ± 20%                 | `bench`      |
-| Pace, the autopilot's minutes to bank ten balls        | baseline ± 20%                 | `pace:check` |
-| Anything kept: bodies, slots, save bytes, heap         | ceilings in `scripts/leaks.ts` | `leaks`      |
+| Property                                                             | Budget                         | Held by      |
+| -------------------------------------------------------------------- | ------------------------------ | ------------ |
+| Boot, page start to the frame loop running                           | 3000 ms                        | `perf`       |
+| Download, scripts and styles gzipped                                 | 400 kB                         | `perf`       |
+| A frame drawn, lower quartile at the standard view                   | 8 ms                           | `perf`       |
+| The physics, a frame, against the reference arithmetic               | baseline ± 20%                 | `bench`      |
+| Pace, game minutes for a hundred coins to come out, fed one a second | baseline ± 20%                 | `pace:check` |
+| Anything kept: bodies, slots, save bytes, heap                       | ceilings in `scripts/leaks.ts` | `leaks`      |
 
 A budget is what the game may cost at all; a baseline is what it cost at
 the last commit, held both ways, so a step toward a budget is noticed as
@@ -77,18 +77,27 @@ change meant to move it, and the commit says why. Look at every picture.
 ## How the code is laid out
 
 - `src/game.ts` is the game without the picture: everything that happens in
-  the arena, a step at a time. It tells what happened through `GameEvents`,
-  and knows nothing of the renderer or the page.
+  the machine, a step at a time: the hand, the funnel, the board, the
+  pushers and the coins. It tells what happened through `GameEvents`, and
+  knows nothing of the renderer or the page.
 - `src/main.ts` is the page. It turns those events into words on the screen
   and draws the frame. There is no game logic here.
 - `src/debug.ts` is `window.game`, the test API. `src/invariants.ts` lists
   the rules that must always hold. `src/autopilot.ts` plays the game by
   itself, for the gates.
-- Content (the floor, the hole, the balls) lives in `arena.ts`. The save
-  lives in `progress.ts`. Chance comes from `random.ts`, handed in.
+- Content (the tiers and their heights, the pushers' stroke, the board and
+  its pins, the coin, the primed fill, the hand) lives in `machine.ts`, in
+  units of about a coin and a fifth, with the back wall at y = 0 and the
+  machine running toward the player along -y. `board.ts` is the backboard's
+  own small physics, coins falling among pins in a plane; `pushers.ts` is
+  the pushers' stroke, each a box the physics shoves with. The save lives
+  in `progress.ts`. Chance comes from `random.ts`, handed in.
 - `src/physics.ts` is the game's side of artshape-physics, and nothing else
-  imports the package directly. A change a package needs goes in that repo,
-  with a version bump here.
+  imports the package directly. The machine needs the package at v0.2.0:
+  floor heights a tile, so a step is a wall from below and an edge from
+  above; a bottom below which a body has left the world; and a box that
+  carries what rests on its top. A change a package needs goes in that
+  repo, with a version bump here.
 
 ## Skills
 
@@ -101,27 +110,30 @@ before anything is written; **/commit** commits in the house style.
 
 What to copy the shape of, when building something new:
 
-- **In the arena:** the ball and the hole. The ball is a body kind in
-  `arena.ts`, drawn by `scene.ts`, banked by `game.ts`, counted by
-  `invariants.ts`, read by `debug.ts`, and pictured in `smoke/look.spec.ts`.
-  These are the stub's: the first feature that lands replaces this entry
-  with the game's own.
+- **In the machine:** the coin and the pusher. The coin is a body kind in
+  `machine.ts`, drawn by `scene.ts` from the physics' own orientation,
+  banked by `game.ts` when it falls out of the bottom, counted and
+  conserved by `invariants.ts`, read by `debug.ts`, and pictured in
+  `smoke/look.spec.ts`. The pusher is a stroke in `machine.ts`, a box in
+  `pushers.ts` handed to the physics, drawn by `scene.ts`, and read by
+  `debug.ts` as how far out it is.
 - **Tools:** the fuzzer (`scripts/fuzzer.ts`) and the pace gate
   (`scripts/pace.ts`). Each has unit tests of its own working parts.
-- **Test helpers:** `newGame(seed)` in `test/helpers.ts`, and `memoryStore`
-  in `src/progress.ts` for a save that is not the player's.
+- **Test helpers:** `newGame(seed)`, `settle` and `playUntil` in
+  `test/helpers.ts`, and `memoryStore` in `src/progress.ts` for a save that
+  is not the player's.
 
-## Replacing the stub
+## The test API
 
-The stub gives way one feature at a time, through `/feature`, every gate
-green at each step. `arena.ts` is the content and usually goes first; the
-tile grid, the rock and the hole are the physics package's terms and can
-stay. The ball is the one body kind: a new kind is a radius and a name in
-the content, a mesh and a group in `scene.ts`, and a line in the invariants.
-The sled is the player's machine and goes last, since the autopilot, the
-fuzzer's `aim` and the smoke tests all drive it. When a thing a gate holds
-goes, the gate is handed its replacement in the same change: a gate that
-holds nothing is worse than none, because it looks like it does.
+`window.game`, from `src/debug.ts`, typed for the smoke tests. Time:
+`pause`, `resume`, `step(frames)`, `seed(n)`. Doing: `drop(x?)`,
+`slide(x)`, `feed(on)` for the drop held down, `place(slot, x, y, z?)`,
+`give(n)` coins into the hand, `fill(n)` coins into the machine, `save()`.
+Reading: `state()` for the hand, the winnings, the funnel and the pushers,
+`bodies()` with each coin's tier, `board()` for the coins falling,
+`content()` for where everything is, `events()` and `invariants()`. The
+camera: `look(x, y, z, view)` and `measureFrame()`. `standardView` in
+`smoke/game.ts` is the view the perf and look gates use.
 
 ## Rules for the code
 
@@ -161,12 +173,13 @@ a picture in `smoke/look.spec.ts`. `npm run check` green, and
 For anything new in the machine, check what it does:
 
 - **the drop:** dropped while others are still falling; dropped at the very
-  edge of the slot; dropped with the platform at each end of its travel
+  end of the funnel's reach; dropped with the pusher at each end of its
+  stroke; the board full; the machine full, and the coin given back
 - **the pegs:** resting on a peg; wedged between two; a stack toppling off one
-- **the platform:** carried as it moves; at its front edge as it goes out and
-  comes back; caught between the platform and the pusher above it
-- **the pushers:** on every tier; under a pusher's face as it comes forward;
-  pinned between a pusher and the wall; pushed onto the tier below
+- **the pushers:** carried on one as it moves; on its lip as it goes out and
+  comes back; swept off by the step face behind it; on every tier; under a
+  face as it comes forward; pinned between a face and the step; pushed onto
+  the tier below
 - **the edge:** over the front, banked; off the side; balanced on the lip
 - **stacking:** on another coin; a heap on the platform; a heap pushed as one
 - **save:** saved, reloaded, and loaded from an old save without the field;
@@ -174,9 +187,9 @@ For anything new in the machine, check what it does:
 - **rock:** against the walls and in the corners; never left in a wall or a
   peg
 - **scale:** thousands at once, at capacity (`BODY_CAPACITY`); what it costs
-  a frame at that many, asleep and churning; the rung a slower GPU steps to
+  a frame at that many, asleep and churning; the coin's plainer rung
+  (`?detail=1`) for a slower GPU
 - **phone:** narrow screen, a portrait machine, a finger to drop a coin
-- **the stub, while it is still here:** the hole and the sled
 
 ## Verifying in a browser
 

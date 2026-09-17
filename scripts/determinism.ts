@@ -43,12 +43,12 @@ export interface TwiceResult {
 
 /**
  * Everything the game is at this moment, as one number in hex: where every
- * body is and how fast it is going, what kind it is and whether it is asleep,
- * where the sled is, and the save. Two games with the same hash are the same
- * game, down to the last bit of every float.
+ * coin is and how fast it is going, whether it is asleep, every coin on the
+ * board, the funnel, the pushers, and the save. Two games with the same
+ * hash are the same game, down to the last bit of every float.
  */
 export function hashGame(game: Game): string {
-  const { world, sled } = game;
+  const { world, board, pushers } = game;
   // FNV-1a over the bits, which is enough to catch a ball a thousandth out of place
   let h = 0x811c9dc5;
   const bits = new DataView(new ArrayBuffer(8));
@@ -73,10 +73,18 @@ export function hashGame(game: Game): string {
     eat(world.vz[i]);
     eat(world.asleep[i]);
   }
-  eat(sled.x);
-  eat(sled.y);
-  eat(sled.yaw);
-  eat(sled.speed);
+  eat(board.count);
+  for (let i = 0; i < board.count; i++) {
+    eat(board.x[i]);
+    eat(board.h[i]);
+    eat(board.vx[i]);
+    eat(board.vh[i]);
+  }
+  eat(game.funnel);
+  for (const box of pushers.boxes) {
+    eat(box.y);
+    eat(box.vy);
+  }
   eat(game.t);
   for (const c of JSON.stringify(game.progress.save)) h = Math.imul(h ^ c.charCodeAt(0), 0x01000193);
   return (h >>> 0).toString(16).padStart(8, '0');

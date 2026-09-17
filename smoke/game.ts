@@ -1,8 +1,9 @@
 /**
  * What the smoke tests share: starting the game in a page, from a save if
- * the test wants one, and waiting until it is ready; and watching the page
- * for errors. Everything else a test does goes through `window.game`, the
- * game's test API (`src/debug.ts`), whose types these tests compile against.
+ * the test wants one, and waiting until it is ready; watching the page for
+ * errors; and the standard view of the machine. Everything else a test does
+ * goes through `window.game`, the game's test API (`src/debug.ts`), whose
+ * types these tests compile against.
  */
 import { expect, type Page } from '@playwright/test';
 import type { GameApi } from '../src/debug';
@@ -28,8 +29,8 @@ export function watch(page: Page): string[] {
 /**
  * The game in the page, from a save if given (written before the page's own
  * scripts run, and only on the first load, so a reload keeps what was
- * played), and ready. `seed` makes chance the same from before the game is
- * built, and `paused` stops it before a frame of its own has run, so
+ * played), and ready. `seed` makes chance the same from before the machine
+ * is primed, and `paused` stops it before a frame of its own has run, so
  * everything after is the test's own stepping.
  */
 export async function start(page: Page, options: { save?: Partial<Save>; seed?: number; paused?: boolean } = {}) {
@@ -55,4 +56,9 @@ export async function ready(page: Page) {
   } catch {
     throw new Error(`the game did not boot: ${await page.locator('#bootMsg').textContent()}`);
   }
+}
+
+/** The standard view: the whole machine from the player's side and above, as the perf and look gates see it. */
+export function standardView(page: Page) {
+  return page.evaluate(() => window.game!.look(0, -17, 17, { azimuth: -Math.PI / 2, polar: 0.98, radius: 100 }));
 }

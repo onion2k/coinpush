@@ -4,9 +4,10 @@
  *   npm run bench              measure, and fail if any scenario has got slower by more than the tolerance
  *   npm run bench -- --update  write what it takes now as the new baseline
  *
- * Two scenarios: the floor at rest, which is what most frames are; and the
- * autopilot pushing balls in, which is what a busy frame is. A game adds a
- * scenario for each way its frames get costly.
+ * Two scenarios: the machine running with nothing dropped, which is what
+ * most frames are, the pushers churning what lies against them; and the
+ * autopilot feeding it a coin a second, which is what a busy frame is. A
+ * game adds a scenario for each way its frames get costly.
  *
  * A time on one machine is not a time on another, or on the same one with
  * something else running. So each scenario is run several times, fresh, in a
@@ -53,24 +54,26 @@ interface Scenario {
   setup: () => { game: Game; frame: () => void };
 }
 
+const still = { funnel: null, drop: false };
+
 /** A game from a seed, settled. */
 function settled(seed: number): Game {
   const game = new Game(new Progress(memoryStore()), {}, { random: seeded(seed) });
-  for (let f = 0; f < 180; f++) game.step(DT, { throttle: 0, steer: 0 });
+  for (let f = 0; f < 180; f++) game.step(DT, still);
   return game;
 }
 
 const SCENARIOS: Scenario[] = [
   {
-    name: 'the floor at rest',
+    name: 'the machine running, nothing dropped',
     frames: 600,
     setup: () => {
       const game = settled(1);
-      return { game, frame: () => game.step(DT, { throttle: 0, steer: 0 }) };
+      return { game, frame: () => game.step(DT, still) };
     },
   },
   {
-    name: 'the autopilot pushing balls in',
+    name: 'the autopilot feeding coins',
     frames: 600,
     setup: () => {
       const game = settled(1);

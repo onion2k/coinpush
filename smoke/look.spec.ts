@@ -17,7 +17,7 @@
  * `test-results/`. Look at all three before deciding which is right.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { start, watch } from './game';
+import { standardView, start, watch } from './game';
 
 /** How far the pictures may differ before it is a change and not the GPU: a fiftieth of the pixels, each well off. */
 const TOLERANCE = { maxDiffPixelRatio: 0.002, threshold: 0.02 };
@@ -28,17 +28,43 @@ async function hideStats(page: Page) {
 }
 
 test.describe('what it looks like', () => {
-  test('the arena, from the start', async ({ page }) => {
+  test('the machine, from the start', async ({ page }) => {
+    const problems = watch(page);
+    await start(page, { seed: 11, paused: true });
+    await page.evaluate(() => window.game!.step(180));
+    await standardView(page);
+    await page.evaluate(() => window.game!.step(1));
+    await hideStats(page);
+    await expect(page.locator('#view')).toHaveScreenshot('machine.png', TOLERANCE);
+    expect(problems).toEqual([]);
+  });
+
+  test('coins falling down the board', async ({ page }) => {
     const problems = watch(page);
     await start(page, { seed: 11, paused: true });
     await page.evaluate(() => {
       const g = window.game!;
-      g.step(180);
-      g.look(0, 0, { azimuth: 0.9, polar: 0.95, radius: 90 });
+      g.feed(true);
+      g.step(100);
+      g.feed(false);
+      g.look(0, 0, 24, { azimuth: -Math.PI / 2, polar: 1.25, radius: 60 });
       g.step(1);
     });
     await hideStats(page);
-    await expect(page.locator('#view')).toHaveScreenshot('arena.png', TOLERANCE);
+    await expect(page.locator('#view')).toHaveScreenshot('board.png', TOLERANCE);
     expect(problems).toEqual([]);
+  });
+
+  test.describe('on a phone', () => {
+    test.use({ viewport: { width: 400, height: 860 }, hasTouch: true, isMobile: true });
+
+    test('the machine, upright, as the page fits it', async ({ page }) => {
+      const problems = watch(page);
+      await start(page, { seed: 11, paused: true });
+      await page.evaluate(() => window.game!.step(181));
+      await hideStats(page);
+      await expect(page).toHaveScreenshot('phone.png', TOLERANCE);
+      expect(problems).toEqual([]);
+    });
   });
 });

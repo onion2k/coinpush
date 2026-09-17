@@ -1,12 +1,12 @@
 {
-  "the floor at rest": {
-    "relative": 0.00005282600765507322,
-    "ms": 0.0008,
-    "ref": 15.3058
+  "the machine running, nothing dropped": {
+    "relative": 0.025998547080986808,
+    "ms": 0.4485,
+    "ref": 17.2522
   },
-  "the autopilot pushing balls in": {
-    "relative": 0.00008477514548684563,
-    "ms": 0.0013,
-    "ref": 15.6247
+  "the autopilot feeding coins": {
+    "relative": 0.02831577661597551,
+    "ms": 0.4458,
+    "ref": 15.7432
   }
 }

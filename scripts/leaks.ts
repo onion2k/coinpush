@@ -1,7 +1,7 @@
 /**
  * A long game played through, watching the things that must not keep
- * growing: the bodies on the floor and the slots they sit in, the save, and
- * the heap.
+ * growing: the coins in the machine and the slots they sit in, the coins on
+ * the board, the save, and the heap.
  *
  * A map that is added to and never emptied does not throw, break a rule, or
  * move any gate's figure. It shows up an hour into a game as a machine that
@@ -16,7 +16,7 @@
  * through is not. A new list, map or cache in the game gets a line in
  * `WATCH` and a reading in `sizes`.
  */
-import { BODY_CAPACITY } from '../src/arena';
+import { BOARD_CAPACITY, BODY_CAPACITY } from '../src/machine';
 import { Autopilot } from '../src/autopilot';
 import { Game } from '../src/game';
 import { Progress, memoryStore } from '../src/progress';
@@ -32,17 +32,20 @@ const DT = 1 / 60;
 export const WATCH: Partial<Record<string, { ceiling: number; steady?: boolean }>> = {
   bodies: { ceiling: BODY_CAPACITY },
   slots: { ceiling: BODY_CAPACITY },
-  'save bytes': { ceiling: 2_000 },
+  flying: { ceiling: BOARD_CAPACITY },
+  // every coin's place, three numbers to a hundredth each, at capacity
+  'save bytes': { ceiling: 200_000 },
   // the catch-all for what is leaking and has no name here; noisy, so it is given a lot of room
   'heap MB': { ceiling: 300, steady: true },
 };
 
 /** Every size worth watching, read off a game as it stands. */
 export function sizes(game: Game): Record<string, number> {
-  const { world, progress } = game;
+  const { world, board, progress } = game;
   return {
     bodies: world.live,
     slots: world.count,
+    flying: board.count,
     'save bytes': JSON.stringify(progress.save).length,
     'heap MB': Math.round(process.memoryUsage().heapUsed / 1e5) / 10,
   };

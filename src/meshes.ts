@@ -1,7 +1,7 @@
 /**
- * The few shapes the arena is made of, built flat-shaded on purpose: a box,
- * a low-poly ball, a square, a disc. Cartoon geometry wants hard edges, so
- * faces do not share vertices and every normal is a face's.
+ * The few shapes the machine is made of, built flat-shaded on purpose: a
+ * box, a coin, a square. Cartoon geometry wants hard edges, so faces do not
+ * share vertices and every normal is a face's.
  *
  * Everything is in world units and Z is up, as the renderer has it.
  */
@@ -67,20 +67,60 @@ export function box(w: number, d: number, h: number, centred = false): Mesh {
   return b.build();
 }
 
-/** A low-poly ball, centred. */
-export function ball(radius: number, rings = 6, segments = 10): Mesh {
+/**
+ * The coin's rungs, finest first: what a slower machine steps down to. Both
+ * keep a straight edge, which is what makes a coin read as a coin: the
+ * bevel goes first, then the roundness.
+ */
+export const COIN_LADDER = [
+  { name: 'bevelled', segments: 12, bevel: true }, // 92 triangles
+  { name: 'plain', segments: 8, bevel: false }, // 28
+] as const;
+
+/**
+ * A chunky coin, centred on the origin with its axis up Z, turned from one
+ * profile: a straight milled edge nearly the full thickness with a thin
+ * bevel each side, which is what makes a coin on its side read as a coin
+ * rather than a lozenge. `detail` is a rung of `COIN_LADDER`.
+ */
+export function coin(radius: number, thickness: number, detail = 0): Mesh {
+  const rung = COIN_LADDER[Math.max(0, Math.min(COIN_LADDER.length - 1, detail))];
+  const { segments } = rung;
   const b = new MeshBuilder();
-  const at = (i: number, j: number): V3 => {
-    const phi = (i / rings) * Math.PI,
-      th = (j / segments) * Math.PI * 2;
-    return [Math.sin(phi) * Math.cos(th) * radius, Math.sin(phi) * Math.sin(th) * radius, Math.cos(phi) * radius];
-  };
-  for (let i = 0; i < rings; i++) {
-    for (let j = 0; j < segments; j++) {
-      if (i === 0) tri(b, at(0, 0), at(1, j), at(1, j + 1));
-      else if (i === rings - 1) tri(b, at(rings, 0), at(i, j + 1), at(i, j));
-      else face(b, at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1));
+  const h = thickness / 2;
+  const bevel = thickness * 0.15;
+  // the top half of the outside, from the edge in to the middle
+  const top: [number, number][] = rung.bevel
+    ? [
+        [radius, h - bevel],
+        [radius - bevel, h],
+      ]
+    : [[radius, h]];
+  // the outside of the solid from the bottom middle round to the top one: with each
+  // band wound the same way along it, every face's normal points out
+  const profile = [...top.map(([r, z]) => [r, -z] as [number, number]).reverse(), ...top];
+  const ring = (r: number, z: number): V3[] => {
+    const out: V3[] = [];
+    for (let i = 0; i < segments; i++) {
+      const a = (i / segments) * Math.PI * 2;
+      out.push([Math.cos(a) * r, Math.sin(a) * r, z]);
     }
+    return out;
+  };
+  const rings = profile.map(([r, z]) => ring(r, z));
+  for (let k = 0; k + 1 < rings.length; k++) {
+    const lo = rings[k],
+      hi = rings[k + 1];
+    for (let i = 0; i < segments; i++) {
+      const j = (i + 1) % segments;
+      face(b, lo[i], lo[j], hi[j], hi[i]);
+    }
+  }
+  const up = rings[rings.length - 1],
+    down = rings[0];
+  for (let i = 1; i < segments - 1; i++) {
+    tri(b, up[0], up[i], up[i + 1]);
+    tri(b, down[0], down[i + 1], down[i]);
   }
   return b.build();
 }
@@ -89,21 +129,5 @@ export function ball(radius: number, rings = 6, segments = 10): Mesh {
 export function square(): Mesh {
   const b = new MeshBuilder();
   face(b, [-0.5, -0.5, 0], [0.5, -0.5, 0], [0.5, 0.5, 0], [-0.5, 0.5, 0]);
-  return b.build();
-}
-
-/** A flat disc at z = 0, facing up. */
-export function disc(radius: number, segments = 24): Mesh {
-  const b = new MeshBuilder();
-  for (let i = 0; i < segments; i++) {
-    const a0 = (i / segments) * Math.PI * 2,
-      a1 = ((i + 1) / segments) * Math.PI * 2;
-    tri(
-      b,
-      [0, 0, 0],
-      [Math.cos(a0) * radius, Math.sin(a0) * radius, 0],
-      [Math.cos(a1) * radius, Math.sin(a1) * radius, 0],
-    );
-  }
   return b.build();
 }

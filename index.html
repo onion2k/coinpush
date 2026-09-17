@@ -53,12 +53,12 @@
     backdrop-filter: blur(8px);
     pointer-events: none;
   }
-  #bank {
+  #hand {
     top: 16px;
     left: 16px;
     font-size: 15px;
   }
-  #bank b {
+  #hand b {
     display: block;
     font-size: 30px;
     font-weight: 700;
@@ -107,9 +107,11 @@
   }
 </style>
 <div id="stage"><canvas id="view"></canvas></div>
-<div class="panel" id="bank" hidden><b>0</b>banked</div>
+<div class="panel" id="hand" hidden><b>0</b>coins in hand · <span id="won">0</span> won</div>
 <div class="panel" id="stats" hidden></div>
-<div class="panel" id="help" hidden><span>W A S D</span> drive · drag to orbit, wheel to zoom</div>
+<div class="panel" id="help" hidden>
+  <span>tap</span> or <span>space</span> drop a coin · move to slide the funnel · drag to orbit
+</div>
 <div id="boot">
   <p id="bootMsg">starting WebGPU…</p>
 </div>
